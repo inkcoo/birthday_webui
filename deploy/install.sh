@@ -23,7 +23,7 @@ warn() { echo -e "${YELLOW}[WARNING]${NC} $1"; }
 error() { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
 
 # 版本信息
-VERSION="1.0.0"
+VERSION="1.0.1"
 INSTALL_DIR="/opt/birthdays"
 DATA_DIR="/opt/birthdays/data"
 LOG_DIR="/opt/birthdays/logs"
@@ -37,6 +37,7 @@ detect_os() {
         OS_VERSION=$VERSION_ID
     elif [[ -f /etc/redhat-release ]]; then
         OS="centos"
+        OS_VERSION="7"
     else
         error "不支持的操作系统"
     fi
@@ -57,10 +58,13 @@ install_deps() {
     case $OS in
         ubuntu|debian)
             apt-get update -qq
-            apt-get install -y -qq curl wget git
+            apt-get install -y -qq curl wget git xz-utils
             ;;
-        centos|rhel|rocky|almalinux)
-            yum install -y -q curl wget git
+        centos|rhel)
+            yum install -y -q curl wget git xz
+            ;;
+        rocky|almalinux)
+            yum install -y -q curl wget git xz
             ;;
         *)
             warn "未知系统类型，跳过依赖安装"
@@ -80,6 +84,13 @@ check_node() {
         fi
     fi
     
+    # 检测 CentOS 7，需要使用预编译版本
+    if [[ "$OS" == "centos" || "$OS" == "rhel" ]] && [[ "$OS_VERSION" == "7"* ]]; then
+        warn "检测到 CentOS/RHEL 7，使用预编译 Node.js..."
+        install_node_binary
+        return 0
+    fi
+    
     info "安装 Node.js 20.x..."
     
     case $OS in
@@ -87,11 +98,56 @@ check_node() {
             curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
             apt-get install -y -qq nodejs
             ;;
-        centos|rhel|rocky|almalinux)
+        rocky|almalinux)
+            curl -fsSL https://rpm.nodesource.com/setup_20.x | bash -
+            yum install -y -q nodejs
+            ;;
+        centos|rhel)
             curl -fsSL https://rpm.nodesource.com/setup_20.x | bash -
             yum install -y -q nodejs
             ;;
     esac
+    
+    success "Node.js 安装完成: $(node -v)"
+}
+
+# 安装预编译的 Node.js（适用于 CentOS 7 等旧系统）
+install_node_binary() {
+    info "下载预编译 Node.js 20.x..."
+    
+    # 确定 CPU 架构
+    ARCH=$(uname -m)
+    case $ARCH in
+        x86_64)
+            NODE_ARCH="x64"
+            ;;
+        aarch64)
+            NODE_ARCH="arm64"
+            ;;
+        *)
+            error "不支持的 CPU 架构: $ARCH"
+            ;;
+    esac
+    
+    # Node.js 版本
+    NODE_VERSION="20.18.0"
+    NODE_FILE="node-v${NODE_VERSION}-linux-${NODE_ARCH}.tar.xz"
+    NODE_URL="https://nodejs.org/dist/v${NODE_VERSION}/${NODE_FILE}"
+    
+    # 下载
+    cd /tmp
+    wget -q "$NODE_URL" || error "Node.js 下载失败"
+    
+    # 解压到 /usr/local
+    tar -xf "$NODE_FILE" -C /usr/local --strip-components=1
+    
+    # 清理
+    rm -f "$NODE_FILE"
+    
+    # 验证
+    if ! command -v node &> /dev/null; then
+        error "Node.js 安装失败"
+    fi
     
     success "Node.js 安装完成: $(node -v)"
 }
