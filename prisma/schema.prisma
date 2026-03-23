@@ -1,0 +1,99 @@
+// Birthdays Reminder Pro - Database Schema
+// Supports: User authentication, Birthday records, System settings, Email logs
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// User model - Admin user for the system
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  password      String   // bcrypt hashed password
+  name          String?
+  role          String   @default("admin") // admin, user
+  isActive      Boolean  @default(true)
+  lastLoginAt   DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  // Relations
+  verificationCodes VerificationCode[]
+  emailLogs         EmailLog[]
+}
+
+// Birthday record model
+model Birthday {
+  id            String   @id @default(cuid())
+  name          String   // Person's name
+  birthYear     Int?     // Optional birth year for age calculation
+  birthMonth    Int      // 1-12
+  birthDay      Int      // 1-31
+  calendarType  String   @default("solar") // solar, lunar
+  department    String?  // Department/team
+  email         String?  // Optional email for notification
+  phone         String?  // Optional phone
+  notes         String?  // Additional notes
+  advanceDays   Int      @default(0) // Days before birthday to remind (0 = on the day)
+  isActive      Boolean  @default(true)
+  lastRemindedAt DateTime? // Last time reminder was sent
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// System settings - Global configuration
+model Setting {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       String   // JSON encoded value
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// Email verification codes for password reset
+model VerificationCode {
+  id        String   @id @default(cuid())
+  email     String
+  code      String   // 6-digit verification code
+  type      String   // password_reset, email_verify
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+  
+  // Relations
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Email sending logs
+model EmailLog {
+  id          String   @id @default(cuid())
+  to          String   // Recipient email
+  subject     String
+  status      String   // success, failed
+  error       String?  // Error message if failed
+  birthdayId  String?  // Related birthday record
+  sentAt      DateTime @default(now())
+  
+  // Relations
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
+
+// Reminder history - Track all sent reminders
+model ReminderHistory {
+  id          String   @id @default(cuid())
+  birthdayId  String
+  birthdayName String
+  remindDate  DateTime // Date when reminder was sent
+  remindType  String   // email, system
+  status      String   // success, failed
+  advanceDays Int      // How many days in advance
+  createdAt   DateTime @default(now())
+}

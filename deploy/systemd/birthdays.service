@@ -1,0 +1,31 @@
+[Unit]
+Description=Birthday Reminder Pro - Enterprise Birthday Reminder System
+Documentation=https://github.com/inkcoo/birthdays_reminder
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/birthdays
+ExecStart=/opt/birthdays/start.sh
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=5s
+
+# Environment
+Environment=NODE_ENV=production
+Environment=DATABASE_URL=file:/opt/birthdays/data/birthdays.db
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=birthdays
+
+# Security
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
